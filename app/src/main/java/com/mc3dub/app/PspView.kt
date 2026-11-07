@@ -3,9 +3,14 @@ package com.mc3dub.app
 import android.content.Context
 import android.opengl.GLSurfaceView
 
+/** Layar game 16:9 (480x272) yang diletakkan di tengah dan memenuhi tinggi layar. */
 class PspView(c: Context) : GLSurfaceView(c) {
-    override fun onMeasure(w: Int, h: Int) {
-        val width = MeasureSpec.getSize(w)
-        setMeasuredDimension(width, width * 272 / 480)
+    override fun onMeasure(wSpec: Int, hSpec: Int) {
+        val pw = MeasureSpec.getSize(wSpec)
+        val ph = MeasureSpec.getSize(hSpec)
+        var h = ph
+        var w = h * 480 / 272
+        if (w > pw) { w = pw; h = w * 272 / 480 }
+        setMeasuredDimension(w, h)
     }
 }

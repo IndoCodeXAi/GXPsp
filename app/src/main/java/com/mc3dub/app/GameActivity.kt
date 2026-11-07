@@ -7,11 +7,13 @@ import android.media.AudioFormat
 import android.media.AudioTrack
 import android.opengl.EGL14
 import android.opengl.GLSurfaceView
+import android.os.Build
 import android.os.Bundle
 import android.os.Process
+import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
-import android.widget.LinearLayout
+import android.widget.FrameLayout
 import android.widget.Toast
 import java.io.File
 import javax.microedition.khronos.egl.EGLConfig
@@ -25,10 +27,16 @@ class GameActivity : Activity(), GLSurfaceView.Renderer {
     private var track: AudioTrack? = null
     private var lastCtx = 0L
     private val audioBuf = ShortArray(16384)
+    private var frameCount = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        if (Build.VERSION.SDK_INT >= 28) {
+            window.attributes = window.attributes.apply {
+                layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+            }
+        }
         romPath = intent.getStringExtra("rom") ?: run { finish(); return }
 
         glView = PspView(this).apply {
@@ -37,11 +45,12 @@ class GameActivity : Activity(), GLSurfaceView.Renderer {
             preserveEGLContextOnPause = true
             setRenderer(this@GameActivity)
         }
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
+        val root = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
-            addView(glView, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT))
-            addView(ControlsView(this@GameActivity), LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
+            addView(glView, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER))
+            addView(ControlsView(this@GameActivity), FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
         }
         setContentView(root)
         hideBars()
@@ -108,6 +117,11 @@ class GameActivity : Activity(), GLSurfaceView.Renderer {
         Native.draw()
         val n = Native.audio(audioBuf)
         if (n > 0) track?.write(audioBuf, 0, n)
+        frameCount++
+        if (frameCount == 300) {  // info diagnostik sementara
+            val info = Native.debug()
+            runOnUiThread { Toast.makeText(this, info, Toast.LENGTH_LONG).show() }
+        }
     }
 
     override fun onPause() {

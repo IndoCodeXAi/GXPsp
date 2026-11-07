@@ -10,5 +10,6 @@ object Native {
     external fun draw()
     external fun audio(out: ShortArray): Int
     external fun setInput(mask: Int, ax: Int, ay: Int)
+    external fun debug(): String
     external fun stop()
 }

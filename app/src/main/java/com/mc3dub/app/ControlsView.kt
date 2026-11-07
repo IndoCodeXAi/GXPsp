@@ -9,10 +9,11 @@ import android.graphics.RectF
 import android.view.MotionEvent
 import android.view.View
 
+/** Kontrol sentuh transparan yang menimpa layar game (mode landscape). */
 class ControlsView(c: Context) : View(c) {
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
+        color = Color.argb(210, 255, 255, 255)
         textAlign = Paint.Align.CENTER
     }
     private var mask = 0
@@ -23,23 +24,26 @@ class ControlsView(c: Context) : View(c) {
     private val selRect = RectF()
     private val startRect = RectF()
 
-    private val normal = Color.parseColor("#44FFFFFF")
-    private val pressed = Color.parseColor("#99FFFFFF")
+    private val normal = Color.parseColor("#33FFFFFF")
+    private val pressed = Color.parseColor("#88FFFFFF")
 
-    private fun dpadC() = PointF(width * 0.24f, height * 0.26f)
-    private fun dpadR() = minOf(width * 0.2f, height * 0.12f)
-    private fun stickC() = PointF(width * 0.24f, height * 0.64f)
-    private fun stickR() = minOf(width * 0.2f, height * 0.13f)
-    private fun faceC() = PointF(width * 0.76f, height * 0.42f)
-    private fun faceD() = minOf(width * 0.14f, height * 0.09f)
+    private fun dpadC() = PointF(width * 0.12f, height * 0.34f)
+    private fun dpadR() = height * 0.17f
+    private fun stickC() = PointF(width * 0.12f, height * 0.78f)
+    private fun stickR() = height * 0.14f
+    private fun faceC() = PointF(width * 0.88f, height * 0.50f)
+    private fun faceD() = height * 0.11f
 
     override fun onSizeChanged(w: Int, h: Int, ow: Int, oh: Int) {
-        val sh = minOf(h * 0.08f, w * 0.12f)
-        lRect.set(w * 0.03f, h * 0.01f, w * 0.30f, h * 0.01f + sh)
-        rRect.set(w * 0.70f, h * 0.01f, w * 0.97f, h * 0.01f + sh)
-        selRect.set(w * 0.30f, h * 0.88f, w * 0.48f, h * 0.88f + sh * 0.7f)
-        startRect.set(w * 0.52f, h * 0.88f, w * 0.70f, h * 0.88f + sh * 0.7f)
-        label.textSize = minOf(w * 0.04f, h * 0.05f)
+        val bw = h * 0.40f
+        val bh = h * 0.12f
+        lRect.set(w * 0.02f, h * 0.03f, w * 0.02f + bw, h * 0.03f + bh)
+        rRect.set(w * 0.98f - bw, h * 0.03f, w * 0.98f, h * 0.03f + bh)
+        val sw = h * 0.30f
+        val sh = h * 0.10f
+        selRect.set(w * 0.5f - sw - h * 0.02f, h * 0.88f, w * 0.5f - h * 0.02f, h * 0.88f + sh)
+        startRect.set(w * 0.5f + h * 0.02f, h * 0.88f, w * 0.5f + h * 0.02f + sw, h * 0.88f + sh)
+        label.textSize = h * 0.045f
     }
 
     private fun on(bit: Int) = (mask shr bit) and 1 == 1
@@ -49,7 +53,6 @@ class ControlsView(c: Context) : View(c) {
         canvas.drawText(s, x, y + label.textSize / 3, label)
 
     override fun onDraw(canvas: Canvas) {
-        // D-pad
         val dc = dpadC(); val r = dpadR(); val a = r * 0.38f
         fill.color = normal
         canvas.drawRect(dc.x - a, dc.y - a, dc.x + a, dc.y + a, fill)
@@ -58,14 +61,12 @@ class ControlsView(c: Context) : View(c) {
         fill.color = col(4); canvas.drawRect(dc.x - a, dc.y - r, dc.x + a, dc.y - a, fill)
         fill.color = col(5); canvas.drawRect(dc.x - a, dc.y + a, dc.x + a, dc.y + r, fill)
 
-        // Stik analog
         val sc = stickC(); val sr = stickR()
-        fill.color = Color.parseColor("#22FFFFFF")
+        fill.color = Color.parseColor("#1AFFFFFF")
         canvas.drawCircle(sc.x, sc.y, sr, fill)
         fill.color = if (ax != 0f || ay != 0f) pressed else normal
         canvas.drawCircle(sc.x + ax * sr, sc.y + ay * sr, sr * 0.45f, fill)
 
-        // Tombol aksi
         val fc = faceC(); val d = faceD(); val br = d * 0.7f
         fill.color = col(9); canvas.drawCircle(fc.x, fc.y - d, br, fill)
         fill.color = col(1); canvas.drawCircle(fc.x - d, fc.y, br, fill)
@@ -76,7 +77,6 @@ class ControlsView(c: Context) : View(c) {
         txt(canvas, "\u25CB", fc.x + d, fc.y)
         txt(canvas, "\u2715", fc.x, fc.y + d)
 
-        // Bahu, Start, Select
         fill.color = col(10); canvas.drawRoundRect(lRect, 24f, 24f, fill)
         fill.color = col(11); canvas.drawRoundRect(rRect, 24f, 24f, fill)
         fill.color = col(2); canvas.drawRoundRect(selRect, 24f, 24f, fill)
@@ -114,7 +114,7 @@ class ControlsView(c: Context) : View(c) {
                 }
 
                 val sc = stickC(); val sr = stickR()
-                if (dist(x, y, sc) < sr * 1.6f) {
+                if (dist(x, y, sc) < sr * 1.4f) {
                     var nx = (x - sc.x) / sr
                     var ny = (y - sc.y) / sr
                     val len = Math.sqrt((nx * nx + ny * ny).toDouble()).toFloat()

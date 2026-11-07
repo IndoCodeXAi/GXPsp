@@ -121,15 +121,6 @@ static std::string jstr(JNIEnv *env, jstring s) {
     return r;
 }
 
-static GLuint compile(GLenum type, const char *src) {
-    GLuint s = glCreateShader(type);
-    glShaderSource(s, 1, &src, nullptr);
-    glCompileShader(s);
-    GLint ok = 0; glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
-    if (!ok) { char buf[512]; glGetShaderInfoLog(s, 512, nullptr, buf); LOGI("shader: %s", buf); }
-    return s;
-}
-
 static bool create_gl() {
     g_fbw = (int)std::min(std::max(g_av.geometry.max_width, g_av.geometry.base_width), 1920u);
     g_fbh = (int)std::min(std::max(g_av.geometry.max_height, g_av.geometry.base_height), 1088u);
@@ -155,45 +146,30 @@ static bool create_gl() {
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     if (!ok) { LOGI("FBO tidak lengkap"); return false; }
 
-    const char *vs = "#version 300 es\nlayout(location=0) in vec2 p; layout(location=1) in vec2 t; out vec2 uv;\n"
-                     "void main(){ gl_Position = vec4(p,0.0,1.0); uv = t; }";
-    const char *fs = "#version 300 es\nprecision mediump float; in vec2 uv; uniform sampler2D s; out vec4 c;\n"
-                     "void main(){ c = vec4(texture(s, uv).rgb, 1.0); }";
-    g_prog = glCreateProgram();
-    glAttachShader(g_prog, compile(GL_VERTEX_SHADER, vs));
-    glAttachShader(g_prog, compile(GL_FRAGMENT_SHADER, fs));
-    glLinkProgram(g_prog);
-    glGenBuffers(1, &g_vbo);
     return true;
 }
 
+static int g_frames = 0;
+
+// Salin FBO core ke layar dengan glBlitFramebuffer (tanpa shader, state GL minimal).
 static void draw_frame() {
-    if (!g_have || !g_prog) return;
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    glViewport(0, 0, g_sw, g_sh);
-    glDisable(GL_DEPTH_TEST); glDisable(GL_STENCIL_TEST); glDisable(GL_BLEND);
-    glDisable(GL_SCISSOR_TEST); glDisable(GL_CULL_FACE);
+    g_frames++;
+    if (!g_have || !g_fbo) return;
+    GLboolean scissor = glIsEnabled(GL_SCISSOR_TEST);
+    glDisable(GL_SCISSOR_TEST);
     glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
+    glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
-
-    glUseProgram(g_prog);
-    glBindVertexArray(0);
-    for (int i = 0; i < 16; i++) glDisableVertexAttribArray(i);
-    glBindBuffer(GL_ARRAY_BUFFER, g_vbo);
-
-    float u = std::min(1.0f, (float)g_w / g_fbw), v = std::min(1.0f, (float)g_h / g_fbh);
-    float v0 = g_hw.bottom_left_origin ? 0.f : v, v1 = g_hw.bottom_left_origin ? v : 0.f;
-    float verts[16] = {-1, -1, 0, v0, 1, -1, u, v0, -1, 1, 0, v1, 1, 1, u, v1};
-    glBufferData(GL_ARRAY_BUFFER, sizeof(verts), verts, GL_STREAM_DRAW);
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 16, (void *)0);
-    glEnableVertexAttribArray(1);
-    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 16, (void *)8);
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, g_tex);
-    glUniform1i(glGetUniformLocation(g_prog, "s"), 0);
-    glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+    glBindFramebuffer(GL_READ_FRAMEBUFFER, g_fbo);
+    int bw = std::min<int>((int)g_w, g_fbw), bh = std::min<int>((int)g_h, g_fbh);
+    if (bw < 1 || bh < 1) { bw = g_fbw; bh = g_fbh; }
+    if (g_hw.bottom_left_origin)
+        glBlitFramebuffer(0, 0, bw, bh, 0, 0, g_sw, g_sh, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    else
+        glBlitFramebuffer(0, 0, bw, bh, 0, g_sh, g_sw, 0, GL_COLOR_BUFFER_BIT, GL_LINEAR);
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    if (scissor) glEnable(GL_SCISSOR_TEST);
 }
 
 #define SYM(var, name) *(void **)(&var) = dlsym(g_lib, name)
@@ -257,6 +233,14 @@ JNIEXPORT jint JNICALL Java_com_mc3dub_app_Native_audio(JNIEnv *env, jobject, js
 
 JNIEXPORT void JNICALL Java_com_mc3dub_app_Native_setInput(JNIEnv *, jobject, jint mask, jint ax, jint ay) {
     g_pad.store((uint32_t)mask); g_ax.store(ax); g_ay.store(ay);
+}
+
+JNIEXPORT jstring JNICALL Java_com_mc3dub_app_Native_debug(JNIEnv *env, jobject) {
+    char buf[256];
+    snprintf(buf, sizeof(buf), "frames=%d have=%d frame=%ux%u fbo=%dx%d surf=%dx%d glerr=0x%x blo=%d",
+             g_frames, (int)g_have, g_w, g_h, g_fbw, g_fbh, g_sw, g_sh, (unsigned)glGetError(),
+             (int)g_hw.bottom_left_origin);
+    return env->NewStringUTF(buf);
 }
 
 JNIEXPORT void JNICALL Java_com_mc3dub_app_Native_stop(JNIEnv *, jobject) {
