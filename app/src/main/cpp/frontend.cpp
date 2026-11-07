@@ -83,11 +83,19 @@ static bool env_cb(unsigned cmd, void *data) {
         case 10: return true;                                      // PIXEL_FORMAT
         case 15: {                                                 // GET_VARIABLE (opsi core)
             auto *v = (retro_variable *)data;
-            // Tanpa ini resolusi internal bernilai 0 sehingga frame berukuran 0x0 (layar hitam).
-            if (v && v->key && !strcmp(v->key, "ppsspp_internal_resolution")) {
-                v->value = "480x272";
-                return true;
-            }
+            if (!v || !v->key) return false;
+            // Pengaturan ringan untuk HP lemah. Tanpa jawaban ini, resolusi internal bernilai 0.
+            static const char *kOpts[][2] = {
+                {"ppsspp_internal_resolution", "480x272"},
+                {"ppsspp_cpu_core", "JIT"},
+                {"ppsspp_auto_frameskip", "enabled"},
+                {"ppsspp_frameskip", "2"},
+                {"ppsspp_skip_buffer_effects", "enabled"},
+                {"ppsspp_lazy_texture_caching", "enabled"},
+                {"ppsspp_fast_memory", "enabled"},
+            };
+            for (auto &o : kOpts)
+                if (!strcmp(v->key, o[0])) { v->value = o[1]; return true; }
             return false;
         }
         case 14: {                                                 // SET_HW_RENDER

@@ -136,7 +136,7 @@ class GameActivity : Activity(), GLSurfaceView.Renderer {
         if (now - lastT > 1_000_000_000L) {
             val fps = (frameCount - lastFrames) * 1e9 / (now - lastT)
             lastT = now; lastFrames = frameCount
-            val t = "fps=" + "%.1f".format(fps) + " " + Native.debug()
+            val t = "fps=" + "%.0f".format(fps)
             runOnUiThread { dbgView.text = t }
         }
     }
