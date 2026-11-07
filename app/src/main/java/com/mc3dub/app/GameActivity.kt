@@ -12,6 +12,7 @@ import android.os.Bundle
 import android.os.Process
 import android.view.Gravity
 import android.view.View
+import android.widget.TextView
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
@@ -28,6 +29,9 @@ class GameActivity : Activity(), GLSurfaceView.Renderer {
     private var lastCtx = 0L
     private val audioBuf = ShortArray(16384)
     private var frameCount = 0
+    private var lastFrames = 0
+    private var lastT = 0L
+    private lateinit var dbgView: TextView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -41,7 +45,7 @@ class GameActivity : Activity(), GLSurfaceView.Renderer {
 
         glView = PspView(this).apply {
             setEGLContextClientVersion(3)
-            setEGLConfigChooser(8, 8, 8, 8, 0, 0)
+            setEGLConfigChooser(8, 8, 8, 0, 0, 0)
             preserveEGLContextOnPause = true
             setRenderer(this@GameActivity)
         }
@@ -51,6 +55,15 @@ class GameActivity : Activity(), GLSurfaceView.Renderer {
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT, Gravity.CENTER))
             addView(ControlsView(this@GameActivity), FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+            dbgView = TextView(this@GameActivity).apply {
+                setTextColor(Color.YELLOW)
+                setBackgroundColor(Color.argb(140, 0, 0, 0))
+                textSize = 10f
+                setPadding(8, 4, 8, 4)
+            }
+            addView(dbgView, FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP or Gravity.CENTER_HORIZONTAL))
         }
         setContentView(root)
         hideBars()
@@ -118,9 +131,13 @@ class GameActivity : Activity(), GLSurfaceView.Renderer {
         val n = Native.audio(audioBuf)
         if (n > 0) track?.write(audioBuf, 0, n)
         frameCount++
-        if (frameCount == 300) {  // info diagnostik sementara
-            val info = Native.debug()
-            runOnUiThread { Toast.makeText(this, info, Toast.LENGTH_LONG).show() }
+        val now = System.nanoTime()
+        if (lastT == 0L) lastT = now
+        if (now - lastT > 1_000_000_000L) {
+            val fps = (frameCount - lastFrames) * 1e9 / (now - lastT)
+            lastT = now; lastFrames = frameCount
+            val t = "fps=" + "%.1f".format(fps) + " " + Native.debug()
+            runOnUiThread { dbgView.text = t }
         }
     }
 

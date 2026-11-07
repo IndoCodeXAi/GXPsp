@@ -92,8 +92,11 @@ static bool env_cb(unsigned cmd, void *data) {
     }
 }
 
+static int g_vcb_hw = 0, g_vcb_null = 0, g_vcb_other = 0;
 static void video_cb(const void *data, unsigned w, unsigned h, size_t) {
-    if (data == (const void *)(intptr_t)-1) { g_w = w; g_h = h; g_have = true; }
+    if (data == (const void *)(intptr_t)-1) { g_w = w; g_h = h; g_have = true; g_vcb_hw++; }
+    else if (data == nullptr) g_vcb_null++;
+    else g_vcb_other++;
 }
 static void audio_cb(int16_t l, int16_t r) { g_audio.push_back(l); g_audio.push_back(r); }
 static size_t audio_batch_cb(const int16_t *d, size_t frames) {
@@ -161,6 +164,7 @@ static void draw_frame() {
     glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
     glClearColor(0, 0, 0, 1);
     glClear(GL_COLOR_BUFFER_BIT);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_FALSE);
     glBindFramebuffer(GL_READ_FRAMEBUFFER, g_fbo);
     int bw = std::min<int>((int)g_w, g_fbw), bh = std::min<int>((int)g_h, g_fbh);
     if (bw < 1 || bh < 1) { bw = g_fbw; bh = g_fbh; }
@@ -169,6 +173,7 @@ static void draw_frame() {
     else
         glBlitFramebuffer(0, 0, bw, bh, 0, g_sh, g_sw, 0, GL_COLOR_BUFFER_BIT, GL_LINEAR);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE);
     if (scissor) glEnable(GL_SCISSOR_TEST);
 }
 
@@ -236,10 +241,24 @@ JNIEXPORT void JNICALL Java_com_mc3dub_app_Native_setInput(JNIEnv *, jobject, ji
 }
 
 JNIEXPORT jstring JNICALL Java_com_mc3dub_app_Native_debug(JNIEnv *env, jobject) {
-    char buf[256];
-    snprintf(buf, sizeof(buf), "frames=%d have=%d frame=%ux%u fbo=%dx%d surf=%dx%d glerr=0x%x blo=%d",
-             g_frames, (int)g_have, g_w, g_h, g_fbw, g_fbh, g_sw, g_sh, (unsigned)glGetError(),
-             (int)g_hw.bottom_left_origin);
+    GLenum err = glGetError();
+    unsigned char px[3][4] = {{0}};
+    if (g_fbo && g_w && g_h) {
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, g_fbo);
+        glReadPixels(g_w / 4, g_h / 4, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px[0]);
+        glReadPixels(g_w / 2, g_h / 2, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px[1]);
+        glReadPixels(g_w * 3 / 4, g_h * 3 / 4, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, px[2]);
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+    }
+    const char *rend = (const char *)glGetString(GL_RENDERER);
+    char buf[512];
+    snprintf(buf, sizeof(buf),
+             "run=%d vcb(hw/null/other)=%d/%d/%d frame=%ux%u fbo=%dx%d surf=%dx%d err=0x%x blo=%d\n"
+             "fbo px: %02x%02x%02x%02x %02x%02x%02x%02x %02x%02x%02x%02x | %s",
+             g_frames, g_vcb_hw, g_vcb_null, g_vcb_other, g_w, g_h, g_fbw, g_fbh, g_sw, g_sh,
+             (unsigned)err, (int)g_hw.bottom_left_origin,
+             px[0][0], px[0][1], px[0][2], px[0][3], px[1][0], px[1][1], px[1][2], px[1][3],
+             px[2][0], px[2][1], px[2][2], px[2][3], rend ? rend : "?");
     return env->NewStringUTF(buf);
 }
 
