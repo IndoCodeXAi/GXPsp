@@ -14,6 +14,8 @@
 
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, "MC3", __VA_ARGS__)
 
+struct retro_variable { const char *key; const char *value; };
+
 typedef void (*proc_t)(void);
 typedef proc_t (*get_proc_t)(const char *);
 typedef uintptr_t (*get_fb_t)(void);
@@ -79,6 +81,15 @@ static bool env_cb(unsigned cmd, void *data) {
         case 9: case 30: *(const char **)data = g_sys.c_str(); return true;  // SYSTEM / CORE_ASSETS dir
         case 31: *(const char **)data = g_save.c_str(); return true;         // SAVE dir
         case 10: return true;                                      // PIXEL_FORMAT
+        case 15: {                                                 // GET_VARIABLE (opsi core)
+            auto *v = (retro_variable *)data;
+            // Tanpa ini resolusi internal bernilai 0 sehingga frame berukuran 0x0 (layar hitam).
+            if (v && v->key && !strcmp(v->key, "ppsspp_internal_resolution")) {
+                v->value = "480x272";
+                return true;
+            }
+            return false;
+        }
         case 14: {                                                 // SET_HW_RENDER
             auto *hw = (retro_hw_render_callback *)data;
             if (hw->context_type != 2 && hw->context_type != 4 && hw->context_type != 5) return false;
